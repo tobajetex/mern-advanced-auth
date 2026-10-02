@@ -7,8 +7,6 @@ import { connectDB } from "./db/connectDB.js";
 dotenv.config();
 const app = express();
 app.use(express.json());
-<<<<<<< Updated upstream
-=======
 app.use(
   cors({
     origin: process.env.CLIENT_URL || "http://localhost:5173",
@@ -17,7 +15,6 @@ app.use(
 );
 
 app.use("/api/auth", authRoutes);
->>>>>>> Stashed changes
 
 app.get("/api/health", (req, res) => {
   res.json({ message: "API is running" });
