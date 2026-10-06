@@ -39,8 +39,8 @@ export const signup = async (req, res) => {
       name: name.trim(),
       email: normalizedEmail,
       password: hashedPassword,
-      verificationCode,
-      verificationCodeExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
+      verificationToken: verificationCode,
+      verificationTokenExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
     });
 
     // 5. Issue tokens + set cookies
@@ -53,6 +53,7 @@ export const signup = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        verificationToken: user.verificationToken,
       },
     });
   } catch (err) {
@@ -61,4 +62,77 @@ export const signup = async (req, res) => {
     });
     console.error(err);
   }
+};
+export const verifyEmail = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({
+        message: "Email and code are required",
+      });
+    }
+    const user = await User.findOne({
+      verificationToken: code,
+      verificationTokenExpiresAt: { $gt: Date.now() },
+    });
+    if (!user) {
+      return res.status(404).json({
+        message: "Invalid or expired verification code",
+      });
+    }
+
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    user.verificationTokenExpiresAt = undefined;
+    await user.save();
+
+    res.json({
+      message: "Email verified successfully",
+    });
+  } catch (err) {
+    console.error(`error:${err}`);
+  }
+};
+export const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({
+        message: "Email and password are required",
+      });
+    }
+    const user = await User.findOne({
+      email: email.toLowerCase().trim(),
+    }).select("+password");
+    if (!user) {
+      return res.status(401).json({
+        message: "Invalid credentials",
+      });
+    }
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({
+        message: "Invalid credentials",
+      });
+    }
+    generateTokenAndSetCookies(res, user._id);
+    user.lastLogin = new Date();
+    await user.save();
+
+    res.status(200).json({
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+      },
+    });
+  } catch (err) {
+    console.error(`error:${err}`);
+  }
+};
+
+export const logout = async (req, res) => {
+  res.clearCookie("accessToken", { path: "/" });
+  res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
+  res.status(200).json({ message: "Logged out successfully" });
 };
